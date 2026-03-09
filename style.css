@@ -1,0 +1,606 @@
+/* Reset og basis */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    min-height: 100vh;
+    padding: 20px;
+    line-height: 1.6;
+}
+
+.container {
+    max-width: 800px;
+    margin: 0 auto;
+}
+
+/* Header */
+header {
+    text-align: center;
+    color: white;
+    margin-bottom: 30px;
+}
+
+header h1 {
+    font-size: 2.5rem;
+    margin-bottom: 10px;
+}
+
+.subtitle {
+    font-size: 1.1rem;
+    opacity: 0.9;
+}
+
+/* Infoboks */
+.info-box {
+    background: #fff3cd;
+    border: 2px solid #ffc107;
+    border-radius: 8px;
+    padding: 15px;
+    margin-bottom: 20px;
+    text-align: center;
+}
+
+.info-box p {
+    margin: 0;
+    color: #856404;
+}
+
+/* Visninger */
+.view {
+    display: block;
+}
+
+.view.hidden {
+    display: none;
+}
+
+/* Kort */
+.card {
+    background: white;
+    border-radius: 12px;
+    padding: 25px;
+    margin-bottom: 20px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.card h2 {
+    margin-bottom: 20px;
+    color: #333;
+    font-size: 1.5rem;
+}
+
+/* Skjema */
+.form-group {
+    margin-bottom: 20px;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 600;
+    color: #333;
+}
+
+.form-group input,
+.form-group textarea {
+    width: 100%;
+    padding: 12px;
+    border: 2px solid #e0e0e0;
+    border-radius: 8px;
+    font-size: 1rem;
+    transition: border-color 0.3s;
+}
+
+.form-group input:focus,
+.form-group textarea:focus {
+    outline: none;
+    border-color: #667eea;
+}
+
+.form-group textarea {
+    resize: vertical;
+    font-family: inherit;
+}
+
+/* Sist registrert-banner */
+.last-item-banner {
+    background: #d4edda;
+    border: 2px solid #28a745;
+    border-radius: 8px;
+    padding: 12px 16px;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    animation: slideIn 0.3s ease-out;
+}
+
+.last-item-banner.hidden {
+    display: none;
+}
+
+.last-item-label {
+    font-weight: 700;
+    color: #155724;
+    white-space: nowrap;
+}
+
+.last-item-text {
+    color: #155724;
+    font-size: 1.05rem;
+    font-weight: 600;
+}
+
+/* Lokasjon dropdown */
+.form-group select {
+    width: 100%;
+    padding: 12px;
+    border: 2px solid #e0e0e0;
+    border-radius: 8px;
+    font-size: 1rem;
+    background: white;
+    cursor: pointer;
+    transition: border-color 0.3s;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%23667eea' d='M6 8L0 0h12z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 14px center;
+    padding-right: 36px;
+}
+
+.form-group select:focus {
+    outline: none;
+    border-color: #667eea;
+}
+
+/* Antall +/- wrapper */
+.quantity-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.quantity-wrapper input {
+    text-align: center;
+    width: 80px;
+    flex-shrink: 0;
+}
+
+.btn-qty {
+    width: 48px;
+    height: 48px;
+    font-size: 1.5rem;
+    font-weight: 700;
+    border: 2px solid #667eea;
+    border-radius: 8px;
+    background: white;
+    color: #667eea;
+    cursor: pointer;
+    transition: all 0.2s;
+    flex-shrink: 0;
+    line-height: 1;
+}
+
+.btn-qty:hover {
+    background: #667eea;
+    color: white;
+}
+
+.btn-qty:active {
+    transform: scale(0.95);
+}
+
+/* Knapper */
+.btn {
+    width: 100%;
+    padding: 15px;
+    border: none;
+    border-radius: 8px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s;
+    margin-bottom: 10px;
+}
+
+.btn-primary {
+    background: #667eea;
+    color: white;
+}
+
+.btn-primary:hover {
+    background: #5568d3;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(102, 126, 234, 0.3);
+}
+
+.btn-success {
+    background: #28a745;
+    color: white;
+}
+
+.btn-success:hover {
+    background: #218838;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(40, 167, 69, 0.3);
+}
+
+.btn-danger {
+    background: #dc3545;
+    color: white;
+}
+
+.btn-danger:hover {
+    background: #c82333;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(220, 53, 69, 0.3);
+}
+
+.btn:active {
+    transform: translateY(0);
+}
+
+/* Rundeinfo */
+.round-info {
+    background: white;
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 20px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 15px;
+}
+
+.info-item {
+    display: flex;
+    flex-direction: column;
+}
+
+.info-item .label {
+    font-size: 0.85rem;
+    color: #666;
+    margin-bottom: 5px;
+}
+
+.info-item .value {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: #333;
+}
+
+/* Artikkel-liste */
+.items-list {
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.empty-message {
+    text-align: center;
+    color: #999;
+    padding: 20px;
+}
+
+.item {
+    background: #f8f9fa;
+    border-radius: 8px;
+    padding: 15px;
+    margin-bottom: 10px;
+    position: relative;
+    border-left: 4px solid #667eea;
+}
+
+.item-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.item-article {
+    font-weight: 600;
+    color: #333;
+    font-size: 1.1rem;
+}
+
+.item-quantity {
+    background: #667eea;
+    color: white;
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-weight: 600;
+}
+
+.item-comment {
+    color: #666;
+    font-size: 0.95rem;
+    margin-top: 8px;
+    font-style: italic;
+}
+
+.item-delete {
+    background: #dc3545;
+    color: white;
+    border: none;
+    padding: 6px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    margin-top: 10px;
+    transition: background 0.3s;
+}
+
+.item-delete:hover {
+    background: #c82333;
+}
+
+/* Handlinger */
+.actions {
+    margin-top: 20px;
+}
+
+/* Mobiltilpasninger */
+@media (max-width: 600px) {
+    body {
+        padding: 10px;
+    }
+
+    header h1 {
+        font-size: 2rem;
+    }
+
+    .subtitle {
+        font-size: 1rem;
+    }
+
+    .card {
+        padding: 20px;
+    }
+
+    .card h2 {
+        font-size: 1.3rem;
+    }
+
+    .round-info {
+        grid-template-columns: 1fr;
+        gap: 10px;
+    }
+
+    .btn {
+        padding: 12px;
+    }
+}
+
+/* Animasjoner */
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.item {
+    animation: slideIn 0.3s ease-out;
+}
+
+/* Scrollbar styling */
+.items-list::-webkit-scrollbar {
+    width: 8px;
+}
+
+.items-list::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 4px;
+}
+
+.items-list::-webkit-scrollbar-thumb {
+    background: #667eea;
+    border-radius: 4px;
+}
+
+.items-list::-webkit-scrollbar-thumb:hover {
+    background: #5568d3;
+}
+
+/* ========================================
+   STREKKODE-SKANNER
+   ======================================== */
+
+/* Input wrapper for artikkelfeltet */
+.article-input-wrapper {
+    display: flex;
+    gap: 10px;
+}
+
+.article-input-wrapper input {
+    flex: 1;
+}
+
+.btn-scan {
+    background: #667eea;
+    color: white;
+    border: none;
+    padding: 12px 20px;
+    border-radius: 8px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s;
+    white-space: nowrap;
+}
+
+.btn-scan:hover {
+    background: #5568d3;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(102, 126, 234, 0.3);
+}
+
+/* Scanner overlay (fullskjerm) */
+.scanner-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: #000;
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+
+.scanner-overlay.hidden {
+    display: none;
+}
+
+/* Video-element */
+#scannerVideo {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+/* Skanne-guide (ramme midt på skjermen) */
+.scan-guide {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+}
+
+.scan-frame {
+    width: 280px;
+    height: 160px;
+    border: 3px dashed rgba(255, 255, 255, 0.8);
+    border-radius: 12px;
+    box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.5);
+}
+
+.scan-instruction {
+    color: white;
+    text-align: center;
+    margin-top: 15px;
+    font-size: 1rem;
+    font-weight: 600;
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.8);
+}
+
+/* Manuell utløser-knapp */
+.btn-capture {
+    position: absolute;
+    bottom: 90px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #667eea;
+    color: white;
+    border: none;
+    padding: 18px 40px;
+    border-radius: 50px;
+    font-size: 1.2rem;
+    font-weight: 700;
+    cursor: pointer;
+    z-index: 10001;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.4);
+    transition: all 0.2s;
+    white-space: nowrap;
+}
+
+.btn-capture:active {
+    transform: translateX(-50%) scale(0.95);
+    background: #5568d3;
+}
+
+/* Feedback-melding ved mislykket scan */
+.scan-feedback {
+    position: absolute;
+    bottom: 160px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(220, 53, 69, 0.9);
+    color: white;
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 1rem;
+    z-index: 10001;
+    white-space: nowrap;
+}
+
+.scan-feedback.hidden {
+    display: none;
+}
+
+/* Lukk-knapp */
+.btn-close-scan {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    background: rgba(220, 53, 69, 0.9);
+    color: white;
+    border: none;
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    font-size: 1.5rem;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.3s;
+    z-index: 10000;
+}
+
+.btn-close-scan:hover {
+    background: #dc3545;
+    transform: scale(1.1);
+}
+
+/* Suksess-animasjon */
+.scanner-overlay.scan-success::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(40, 167, 69, 0.3);
+    animation: successFlash 0.3s ease-out;
+    pointer-events: none;
+}
+
+@keyframes successFlash {
+    0% { opacity: 0; }
+    50% { opacity: 1; }
+    100% { opacity: 0; }
+}
+
+/* Mobiloptimalisering for skanner */
+@media (max-width: 600px) {
+    .article-input-wrapper {
+        flex-direction: column;
+    }
+
+    .btn-scan {
+        width: 100%;
+    }
+
+    .scan-frame {
+        width: 240px;
+        height: 140px;
+    }
+
+    .btn-close-scan {
+        width: 44px;
+        height: 44px;
+        font-size: 1.3rem;
+    }
+}

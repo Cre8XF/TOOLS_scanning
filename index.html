@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lagerkontroll - Etterfyllingsregistrering</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🛠️ Lagerkontroll</h1>
+            <p class="subtitle">Registrering av behov ved lagergjennomgang</p>
+        </header>
+
+        <!-- Infoboks -->
+        <div class="info-box">
+            <p><strong>⚠️ Viktig:</strong> Dette er registrert behov – ikke lagerbeholdning.</p>
+        </div>
+
+        <!-- Startskjema -->
+        <div id="startView" class="view">
+            <div class="card">
+                <h2>Start ny runde</h2>
+                <form id="startForm">
+                    <div class="form-group">
+                        <label for="location">Lokasjon *</label>
+                        <select id="location" name="location" required>
+                            <option value="">– Velg lokasjon –</option>
+                            <option value="ØST: Spriten">ØST: Spriten</option>
+                            <option value="VEST: Cellulose">VEST: Cellulose</option>
+                            <option value="Kokeri">Kokeri</option>
+                            <option value="ALVA">ALVA</option>
+                            <option value="SENTRALV.">SENTRALV.</option>
+                            <option value="__custom__">Annet (skriv inn)...</option>
+                        </select>
+                        <input type="text" id="locationCustom" name="locationCustom"
+                               placeholder="Skriv inn lokasjon" style="display:none; margin-top:8px;">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="department">Avdeling</label>
+                        <input type="text" id="department" name="department" placeholder="F.eks. Tools Fredrikstad">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="csvFilename">CSV-filnavn *</label>
+                        <input type="text" id="csvFilename" name="csvFilename" required placeholder="F.eks. etterfylling">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="registeredBy">Registrert av</label>
+                        <input type="text" id="registeredBy" name="registeredBy" placeholder="Ditt navn">
+                    </div>
+
+                    <button type="submit" class="btn btn-primary">Start runde</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Registreringsvisning -->
+        <div id="registrationView" class="view hidden">
+            <!-- Rundeinfo -->
+            <div class="round-info">
+                <div class="info-item">
+                    <span class="label">Lokasjon:</span>
+                    <span id="displayLocation" class="value"></span>
+                </div>
+                <div class="info-item">
+                    <span class="label">Avdeling:</span>
+                    <span id="displayDepartment" class="value"></span>
+                </div>
+                <div class="info-item">
+                    <span class="label">Dato:</span>
+                    <span id="displayDate" class="value"></span>
+                </div>
+                <div class="info-item">
+                    <span class="label">Uke:</span>
+                    <span id="displayWeek" class="value"></span>
+                </div>
+            </div>
+
+            <!-- Sist registrert-banner -->
+            <div id="lastItemBanner" class="last-item-banner hidden">
+                <span class="last-item-label">✅ Sist lagt til:</span>
+                <span id="lastItemText" class="last-item-text"></span>
+            </div>
+
+            <!-- Registreringsskjema -->
+            <div class="card">
+                <h2>Registrer artikkel</h2>
+                <form id="itemForm">
+                    <div class="form-group">
+                        <label for="articleNumber">Artikkelnummer *</label>
+                        <div class="article-input-wrapper">
+                            <input type="text" id="articleNumber" name="articleNumber" required placeholder="Skriv eller scan">
+                            <button type="button" id="scanBtn" class="btn-scan" title="Skann strekkode">📷 Skann</button>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="quantity">Antall *</label>
+                        <div class="quantity-wrapper">
+                            <button type="button" class="btn-qty" id="qtyMinus">−</button>
+                            <input type="number" id="quantity" name="quantity" required min="1" value="1">
+                            <button type="button" class="btn-qty" id="qtyPlus">+</button>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="comment">Kommentar</label>
+                        <textarea id="comment" name="comment" rows="2" placeholder="Valgfri kommentar"></textarea>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary">Legg til</button>
+                </form>
+            </div>
+
+            <!-- Registrerte linjer -->
+            <div class="card">
+                <h2>Registrerte linjer (<span id="itemCount">0</span>)</h2>
+                <div id="itemsList" class="items-list">
+                    <p class="empty-message">Ingen linjer registrert ennå.</p>
+                </div>
+            </div>
+
+            <!-- Handlinger -->
+            <div class="actions">
+                <button id="finishRoundBtn" class="btn btn-success">Avslutt runde og eksporter</button>
+                <button id="cancelRoundBtn" class="btn btn-danger">Slett runde / start på nytt</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Video-element for kamera (skjult som standard) -->
+    <div id="scannerOverlay" class="scanner-overlay hidden">
+        <video id="scannerVideo" autoplay playsinline></video>
+        <div class="scan-guide">
+            <div class="scan-frame"></div>
+            <p class="scan-instruction">Plasser strekkoden i rammen</p>
+        </div>
+        <div id="scanFeedback" class="scan-feedback hidden"></div>
+        <button type="button" id="captureBtn" class="btn-capture">📷 Les kode</button>
+        <button type="button" id="closeScanBtn" class="btn-close-scan" title="Lukk kamera">✕</button>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
