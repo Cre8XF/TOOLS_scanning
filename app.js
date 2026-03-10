@@ -615,3 +615,446 @@ if (document.readyState === 'loading') {
 } else {
     initScanner();
 }
+
+/**
+ * ========================================
+ * FANE-NAVIGASJON
+ * ========================================
+ */
+
+/**
+ * Bytt mellom "behov" og "kartlegging"-fanen
+ * @param {'behov'|'kartlegging'} tab
+ */
+function switchTab(tab) {
+    const tabBehov = document.getElementById('tabBehov');
+    const tabKartlegging = document.getElementById('tabKartlegging');
+    const mappingView = document.getElementById('mappingView');
+    const infoBox = document.getElementById('infoBoxBehov');
+
+    if (tab === 'kartlegging') {
+        tabBehov.classList.remove('tab-active');
+        tabKartlegging.classList.add('tab-active');
+
+        // Skjul behovsvisninger
+        startView.classList.add('hidden');
+        registrationView.classList.add('hidden');
+        infoBox.classList.add('hidden');
+
+        // Vis kartlegging
+        mappingView.classList.remove('hidden');
+        renderCatalogList();
+    } else {
+        tabKartlegging.classList.remove('tab-active');
+        tabBehov.classList.add('tab-active');
+
+        // Skjul kartlegging
+        mappingView.classList.add('hidden');
+        infoBox.classList.remove('hidden');
+
+        // Vis korrekt behovsvisning
+        if (currentRound) {
+            registrationView.classList.remove('hidden');
+        } else {
+            startView.classList.remove('hidden');
+        }
+    }
+}
+
+/**
+ * ========================================
+ * ARTIKKELKATALOG
+ * ========================================
+ */
+
+const CATALOG_KEY = 'articleCatalog';
+const STALE_DAYS = 42;
+
+/**
+ * Last katalogen fra localStorage
+ * @returns {Array}
+ */
+function loadCatalog() {
+    try {
+        return JSON.parse(localStorage.getItem(CATALOG_KEY)) || [];
+    } catch (e) {
+        return [];
+    }
+}
+
+/**
+ * Lagre katalogen til localStorage
+ * @param {Array} catalog
+ */
+function saveCatalog(catalog) {
+    localStorage.setItem(CATALOG_KEY, JSON.stringify(catalog));
+}
+
+/**
+ * Legg til eller oppdater en artikkel i katalogen
+ * @param {Object} article - { toolsNr, saNr, description, location }
+ */
+function upsertCatalogItem(article) {
+    const catalog = loadCatalog();
+    const today = new Date().toISOString().slice(0, 10);
+    const idx = catalog.findIndex(
+        c => c.toolsNr.toLowerCase() === article.toolsNr.toLowerCase()
+    );
+
+    if (idx >= 0) {
+        catalog[idx] = {
+            ...catalog[idx],
+            saNr: article.saNr,
+            description: article.description,
+            location: article.location,
+            lastSeen: today
+        };
+    } else {
+        catalog.unshift({
+            id: Date.now(),
+            toolsNr: article.toolsNr,
+            saNr: article.saNr,
+            description: article.description,
+            location: article.location,
+            lastSeen: today
+        });
+    }
+
+    saveCatalog(catalog);
+}
+
+/**
+ * Slett en artikkel fra katalogen
+ * @param {number} id
+ */
+function deleteCatalogItem(id) {
+    if (!confirm('Slett denne artikkelen fra katalogen?')) return;
+    const catalog = loadCatalog().filter(c => c.id !== id);
+    saveCatalog(catalog);
+    renderCatalogList();
+}
+
+/**
+ * Beregn antall dager siden lastSeen
+ * @param {string} lastSeen - ISO dato-streng YYYY-MM-DD
+ * @returns {number}
+ */
+function daysSince(lastSeen) {
+    const ms = Date.now() - new Date(lastSeen).getTime();
+    return Math.floor(ms / 86400000);
+}
+
+/**
+ * Renderer kataloglisten med valgfritt søkefilter
+ */
+function renderCatalogList() {
+    const catalog = loadCatalog();
+    const search = (document.getElementById('catalogSearch')?.value || '').toLowerCase();
+    const listEl = document.getElementById('catalogList');
+    const countEl = document.getElementById('catalogCount');
+
+    const filtered = search
+        ? catalog.filter(c =>
+            c.toolsNr.toLowerCase().includes(search) ||
+            (c.saNr || '').toLowerCase().includes(search) ||
+            c.description.toLowerCase().includes(search)
+          )
+        : catalog;
+
+    countEl.textContent = catalog.length;
+
+    if (filtered.length === 0) {
+        listEl.innerHTML = `<p class="empty-message">${search ? 'Ingen treff for søket.' : 'Ingen artikler i katalogen ennå.'}</p>`;
+        return;
+    }
+
+    listEl.innerHTML = filtered.map(item => {
+        const days = daysSince(item.lastSeen);
+        const isStale = days >= STALE_DAYS;
+        return `
+            <div class="catalog-item${isStale ? ' stale' : ''}">
+                <div class="catalog-item-header">
+                    <div>
+                        <span class="catalog-item-title">${escapeHtml(item.toolsNr)}</span>
+                        ${item.saNr ? `<span class="catalog-item-sa"> · ${escapeHtml(item.saNr)}</span>` : ''}
+                    </div>
+                </div>
+                <div class="catalog-item-desc">${escapeHtml(item.description)}</div>
+                <div class="catalog-item-meta">
+                    ${item.location ? `<span>📍 ${escapeHtml(item.location)}</span>` : ''}
+                    <span>👁️ Sist sett: ${escapeHtml(item.lastSeen)}</span>
+                </div>
+                ${isStale ? `<div class="stale-warning">⚠️ Ikke sett på ${days} dager</div>` : ''}
+                <div class="catalog-item-actions">
+                    <button class="catalog-delete" onclick="deleteCatalogItem(${item.id})">🗑️ Slett</button>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+/**
+ * Eksporter katalogen som semikolondelt CSV med BOM
+ */
+function exportCatalog() {
+    const catalog = loadCatalog();
+    if (catalog.length === 0) {
+        alert('Katalogen er tom – ingenting å eksportere.');
+        return;
+    }
+
+    const headers = ['tools_nr', 'sa_nr', 'beskrivelse', 'lokasjon', 'sist_sett'];
+    const rows = catalog.map(c => [
+        escapeCSV(c.toolsNr),
+        escapeCSV(c.saNr || ''),
+        escapeCSV(c.description),
+        escapeCSV(c.location || ''),
+        escapeCSV(c.lastSeen)
+    ].join(';'));
+
+    const csvContent = [headers.join(';'), ...rows].join('\n');
+    const today = new Date().toISOString().slice(0, 10);
+    downloadCSV(csvContent, `artikkelkatalog_${today}.csv`);
+}
+
+/**
+ * Importer katalog fra CSV-fil (merger inn, Tools-nr som nøkkel)
+ * @param {File} file
+ */
+function importCatalog(file) {
+    const reader = new FileReader();
+    reader.onload = function (e) {
+        const text = e.target.result.replace(/^\uFEFF/, ''); // fjern BOM
+        const lines = text.split(/\r?\n/).filter(l => l.trim());
+        if (lines.length < 2) {
+            alert('CSV-filen er tom eller ugyldig.');
+            return;
+        }
+
+        // Auto-detect delimiter fra første linje
+        const firstLine = lines[0];
+        const delimiter = firstLine.includes(';') ? ';' : ',';
+
+        const headerLine = firstLine.split(delimiter).map(h => h.trim().toLowerCase());
+        const colToolsNr = headerLine.indexOf('tools_nr');
+        const colSaNr = headerLine.indexOf('sa_nr');
+        const colDesc = headerLine.indexOf('beskrivelse');
+        const colLoc = headerLine.indexOf('lokasjon');
+        const colLastSeen = headerLine.indexOf('sist_sett');
+
+        if (colToolsNr === -1 || colDesc === -1) {
+            alert('Filen mangler påkrevde kolonner (tools_nr, beskrivelse).');
+            return;
+        }
+
+        const catalog = loadCatalog();
+        const today = new Date().toISOString().slice(0, 10);
+        let added = 0, updated = 0;
+
+        for (let i = 1; i < lines.length; i++) {
+            const cols = splitCSVLine(lines[i], delimiter);
+            const toolsNr = (cols[colToolsNr] || '').trim();
+            if (!toolsNr) continue;
+
+            const newItem = {
+                toolsNr,
+                saNr: colSaNr >= 0 ? (cols[colSaNr] || '').trim() : '',
+                description: colDesc >= 0 ? (cols[colDesc] || '').trim() : '',
+                location: colLoc >= 0 ? (cols[colLoc] || '').trim() : '',
+                lastSeen: colLastSeen >= 0 && cols[colLastSeen]?.trim()
+                    ? cols[colLastSeen].trim()
+                    : today
+            };
+
+            const idx = catalog.findIndex(c => c.toolsNr.toLowerCase() === toolsNr.toLowerCase());
+            if (idx >= 0) {
+                catalog[idx] = { ...catalog[idx], ...newItem };
+                updated++;
+            } else {
+                catalog.unshift({ id: Date.now() + i, ...newItem });
+                added++;
+            }
+        }
+
+        saveCatalog(catalog);
+        renderCatalogList();
+        alert(`Import fullført: ${added} nye artikler lagt til, ${updated} oppdatert.`);
+    };
+    reader.readAsText(file, 'UTF-8');
+}
+
+/**
+ * Del opp en CSV-linje med støtte for anførselstegn
+ * @param {string} line
+ * @param {string} delimiter
+ * @returns {string[]}
+ */
+function splitCSVLine(line, delimiter) {
+    const result = [];
+    let current = '';
+    let inQuotes = false;
+
+    for (let i = 0; i < line.length; i++) {
+        const ch = line[i];
+        if (ch === '"') {
+            if (inQuotes && line[i + 1] === '"') {
+                current += '"';
+                i++;
+            } else {
+                inQuotes = !inQuotes;
+            }
+        } else if (ch === delimiter && !inQuotes) {
+            result.push(current);
+            current = '';
+        } else {
+            current += ch;
+        }
+    }
+    result.push(current);
+    return result;
+}
+
+/**
+ * ========================================
+ * AUTOCOMPLETE FOR ARTIKKELNUMMER
+ * ========================================
+ */
+
+function initAutocomplete() {
+    const input = document.getElementById('articleNumber');
+    const listEl = document.getElementById('autocompleteList');
+    if (!input || !listEl) return;
+
+    input.addEventListener('input', function () {
+        const val = this.value.trim().toLowerCase();
+        if (!val) {
+            listEl.classList.add('hidden');
+            return;
+        }
+
+        const catalog = loadCatalog();
+        const matches = catalog
+            .filter(c =>
+                c.toolsNr.toLowerCase().includes(val) ||
+                (c.saNr || '').toLowerCase().includes(val)
+            )
+            .slice(0, 5);
+
+        if (matches.length === 0) {
+            listEl.classList.add('hidden');
+            return;
+        }
+
+        listEl.innerHTML = matches.map(c => `
+            <div class="autocomplete-item" data-value="${escapeHtml(c.toolsNr)}">
+                <strong>${escapeHtml(c.toolsNr)}</strong>
+                ${c.saNr ? ` · ${escapeHtml(c.saNr)}` : ''}
+                <span style="color:#888; font-size:0.85rem"> — ${escapeHtml(c.description)}</span>
+            </div>
+        `).join('');
+        listEl.classList.remove('hidden');
+
+        listEl.querySelectorAll('.autocomplete-item').forEach(item => {
+            item.addEventListener('mousedown', function (e) {
+                e.preventDefault(); // forhindre blur
+                input.value = this.dataset.value;
+                listEl.classList.add('hidden');
+                input.focus();
+            });
+        });
+    });
+
+    input.addEventListener('blur', function () {
+        // Liten forsinkelse slik at mousedown på forslag rekker å kjøre
+        setTimeout(() => listEl.classList.add('hidden'), 150);
+    });
+
+    input.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape') {
+            listEl.classList.add('hidden');
+        }
+    });
+}
+
+/**
+ * ========================================
+ * INITIALISERING AV KATALOG
+ * ========================================
+ */
+
+function initCatalog() {
+    // Katalog-skjema
+    const catalogForm = document.getElementById('catalogForm');
+    if (catalogForm) {
+        catalogForm.addEventListener('submit', function (e) {
+            e.preventDefault();
+
+            const locSelect = document.getElementById('catLocation');
+            const location = locSelect.value === '__custom__'
+                ? document.getElementById('catLocationCustom').value.trim()
+                : locSelect.value;
+
+            upsertCatalogItem({
+                toolsNr: document.getElementById('catToolsNr').value.trim(),
+                saNr: document.getElementById('catSaNr').value.trim(),
+                description: document.getElementById('catDescription').value.trim(),
+                location
+            });
+
+            catalogForm.reset();
+            document.getElementById('catLocationCustom').style.display = 'none';
+            renderCatalogList();
+            document.getElementById('catToolsNr').focus();
+        });
+    }
+
+    // Lokasjon custom i katalogskjema
+    const catLocSelect = document.getElementById('catLocation');
+    if (catLocSelect) {
+        catLocSelect.addEventListener('change', function () {
+            const custom = document.getElementById('catLocationCustom');
+            if (this.value === '__custom__') {
+                custom.style.display = 'block';
+                custom.required = true;
+            } else {
+                custom.style.display = 'none';
+                custom.required = false;
+                custom.value = '';
+            }
+        });
+    }
+
+    // Søk i katalog
+    const searchEl = document.getElementById('catalogSearch');
+    if (searchEl) {
+        searchEl.addEventListener('input', renderCatalogList);
+    }
+
+    // Eksport
+    const exportBtn = document.getElementById('exportCatalogBtn');
+    if (exportBtn) {
+        exportBtn.addEventListener('click', exportCatalog);
+    }
+
+    // Import
+    const importBtn = document.getElementById('importCatalogBtn');
+    const importFile = document.getElementById('importCatalogFile');
+    if (importBtn && importFile) {
+        importBtn.addEventListener('click', () => importFile.click());
+        importFile.addEventListener('change', function () {
+            if (this.files[0]) {
+                importCatalog(this.files[0]);
+                this.value = ''; // reset slik at samme fil kan velges igjen
+            }
+        });
+    }
+
+    // Autocomplete
+    initAutocomplete();
+}
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initCatalog);
+} else {
+    initCatalog();
+}

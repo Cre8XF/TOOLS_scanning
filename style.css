@@ -1,3 +1,191 @@
+/* ========================================
+   FANE-NAVIGASJON
+   ======================================== */
+
+.tab-nav {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 20px;
+}
+
+.tab-btn {
+    flex: 1;
+    padding: 12px 16px;
+    border: 2px solid rgba(255, 255, 255, 0.4);
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.15);
+    color: white;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.25s;
+}
+
+.tab-btn:hover {
+    background: rgba(255, 255, 255, 0.25);
+}
+
+.tab-btn.tab-active {
+    background: white;
+    color: #667eea;
+    border-color: white;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
+}
+
+/* ========================================
+   AUTOCOMPLETE
+   ======================================== */
+
+.autocomplete-wrapper {
+    position: relative;
+}
+
+.autocomplete-list {
+    position: absolute;
+    top: calc(100% + 2px);
+    left: 0;
+    right: 0;
+    background: white;
+    border: 2px solid #667eea;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    z-index: 1000;
+    overflow: hidden;
+}
+
+.autocomplete-list.hidden {
+    display: none;
+}
+
+.autocomplete-item {
+    padding: 10px 14px;
+    cursor: pointer;
+    font-size: 0.95rem;
+    color: #333;
+    border-bottom: 1px solid #f0f0f0;
+    transition: background 0.15s;
+}
+
+.autocomplete-item:last-child {
+    border-bottom: none;
+}
+
+.autocomplete-item:hover,
+.autocomplete-item.autocomplete-active {
+    background: #f0f3ff;
+}
+
+.autocomplete-item strong {
+    color: #667eea;
+}
+
+/* ========================================
+   KATALOGLISTE
+   ======================================== */
+
+.catalog-list {
+    max-height: 500px;
+    overflow-y: auto;
+}
+
+.catalog-list::-webkit-scrollbar {
+    width: 8px;
+}
+
+.catalog-list::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 4px;
+}
+
+.catalog-list::-webkit-scrollbar-thumb {
+    background: #667eea;
+    border-radius: 4px;
+}
+
+.catalog-item {
+    background: #f8f9fa;
+    border-radius: 8px;
+    padding: 14px;
+    margin-bottom: 10px;
+    border-left: 4px solid #667eea;
+    animation: slideIn 0.3s ease-out;
+}
+
+.catalog-item.stale {
+    border-left-color: #dc3545;
+    background: #fff5f5;
+    outline: 2px solid #dc3545;
+}
+
+.catalog-item-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 8px;
+    margin-bottom: 6px;
+}
+
+.catalog-item-title {
+    font-weight: 700;
+    color: #333;
+    font-size: 1.05rem;
+}
+
+.catalog-item-sa {
+    color: #667eea;
+    font-size: 0.9rem;
+    font-weight: 600;
+}
+
+.catalog-item-desc {
+    color: #555;
+    font-size: 0.95rem;
+    margin-bottom: 4px;
+}
+
+.catalog-item-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    font-size: 0.85rem;
+    color: #888;
+    margin-top: 6px;
+}
+
+.catalog-item-meta span {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.stale-warning {
+    color: #dc3545;
+    font-weight: 700;
+    font-size: 0.85rem;
+    margin-top: 6px;
+}
+
+.catalog-item-actions {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 10px;
+}
+
+.catalog-delete {
+    background: #dc3545;
+    color: white;
+    border: none;
+    padding: 6px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    transition: background 0.3s;
+}
+
+.catalog-delete:hover {
+    background: #c82333;
+}
+
 /* Reset og basis */
 * {
     margin: 0;
