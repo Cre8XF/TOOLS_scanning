@@ -13,8 +13,14 @@
             <p class="subtitle">Registrering av behov ved lagergjennomgang</p>
         </header>
 
+        <!-- Fane-navigasjon -->
+        <nav class="tab-nav">
+            <button class="tab-btn tab-active" id="tabBehov" onclick="switchTab('behov')">📋 Behov</button>
+            <button class="tab-btn" id="tabKartlegging" onclick="switchTab('kartlegging')">🗂️ Kartlegging</button>
+        </nav>
+
         <!-- Infoboks -->
-        <div class="info-box">
+        <div class="info-box" id="infoBoxBehov">
             <p><strong>⚠️ Viktig:</strong> Dette er registrert behov – ikke lagerbeholdning.</p>
         </div>
 
@@ -92,10 +98,11 @@
                 <form id="itemForm">
                     <div class="form-group">
                         <label for="articleNumber">Artikkelnummer *</label>
-                        <div class="article-input-wrapper">
-                            <input type="text" id="articleNumber" name="articleNumber" required placeholder="Skriv eller scan">
+                        <div class="article-input-wrapper autocomplete-wrapper">
+                            <input type="text" id="articleNumber" name="articleNumber" required placeholder="Skriv eller scan" autocomplete="off">
                             <button type="button" id="scanBtn" class="btn-scan" title="Skann strekkode">📷 Skann</button>
                         </div>
+                        <div id="autocompleteList" class="autocomplete-list hidden"></div>
                     </div>
 
                     <div class="form-group">
@@ -130,7 +137,65 @@
                 <button id="cancelRoundBtn" class="btn btn-danger">Slett runde / start på nytt</button>
             </div>
         </div>
-    </div>
+
+        <!-- Kartleggingsvisning -->
+        <div id="mappingView" class="view hidden">
+
+            <!-- A) Legg til artikkel -->
+            <div class="card">
+                <h2>Legg til artikkel i katalog</h2>
+                <form id="catalogForm">
+                    <div class="form-group">
+                        <label for="catToolsNr">Tools-nr *</label>
+                        <input type="text" id="catToolsNr" name="catToolsNr" required placeholder="F.eks. 12345">
+                    </div>
+                    <div class="form-group">
+                        <label for="catSaNr">SA-nr</label>
+                        <input type="text" id="catSaNr" name="catSaNr" placeholder="F.eks. SA-6789">
+                    </div>
+                    <div class="form-group">
+                        <label for="catDescription">Beskrivelse *</label>
+                        <input type="text" id="catDescription" name="catDescription" required placeholder="F.eks. Drill 18V">
+                    </div>
+                    <div class="form-group">
+                        <label for="catLocation">Lokasjon</label>
+                        <select id="catLocation" name="catLocation">
+                            <option value="">– Velg lokasjon –</option>
+                            <option value="ØST: Spriten">ØST: Spriten</option>
+                            <option value="VEST: Cellulose">VEST: Cellulose</option>
+                            <option value="Kokeri">Kokeri</option>
+                            <option value="ALVA">ALVA</option>
+                            <option value="SENTRALV.">SENTRALV.</option>
+                            <option value="__custom__">Annet (skriv inn)...</option>
+                        </select>
+                        <input type="text" id="catLocationCustom" name="catLocationCustom"
+                               placeholder="Skriv inn lokasjon" style="display:none; margin-top:8px;">
+                    </div>
+                    <button type="submit" class="btn btn-primary">Legg til i katalog</button>
+                </form>
+            </div>
+
+            <!-- B+C) Søk og katalogliste -->
+            <div class="card">
+                <h2>Katalog (<span id="catalogCount">0</span>)</h2>
+                <div class="form-group">
+                    <input type="text" id="catalogSearch" placeholder="🔍 Søk på Tools-nr, SA-nr eller beskrivelse..." autocomplete="off">
+                </div>
+                <div id="catalogList" class="catalog-list">
+                    <p class="empty-message">Ingen artikler i katalogen ennå.</p>
+                </div>
+            </div>
+
+            <!-- D) Eksport og import -->
+            <div class="card">
+                <h2>Eksport / Import</h2>
+                <button id="exportCatalogBtn" class="btn btn-success">⬇️ Eksporter katalog (CSV)</button>
+                <button id="importCatalogBtn" class="btn btn-primary">⬆️ Importer katalog (CSV)</button>
+                <input type="file" id="importCatalogFile" accept=".csv" style="display:none;">
+            </div>
+        </div>
+
+    </div><!-- /.container -->
 
     <!-- Video-element for kamera (skjult som standard) -->
     <div id="scannerOverlay" class="scanner-overlay hidden">
