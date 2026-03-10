@@ -669,6 +669,42 @@ function switchTab(tab) {
 
 const CATALOG_KEY = 'articleCatalog';
 const STALE_DAYS = 42;
+const SHEETJS_CDN = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+
+/**
+ * Last SheetJS dynamisk fra CDN (kun ved behov)
+ * @returns {Promise<Object>} XLSX-objektet
+ */
+function loadSheetJS() {
+    return new Promise((resolve, reject) => {
+        if (window.XLSX) {
+            resolve(window.XLSX);
+            return;
+        }
+        const script = document.createElement('script');
+        script.src = SHEETJS_CDN;
+        script.onload = () => resolve(window.XLSX);
+        script.onerror = () => reject(new Error('Kunne ikke laste SheetJS'));
+        document.head.appendChild(script);
+    });
+}
+
+/**
+ * Konverter norsk datoformat DD.MM.YYYY til ISO YYYY-MM-DD
+ * @param {string} str
+ * @returns {string|null}
+ */
+function parseNorwegianDate(str) {
+    if (!str) return null;
+    const s = String(str).trim();
+    const match = s.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);
+    if (match) {
+        const [, d, m, y] = match;
+        return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+    }
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+    return null;
+}
 
 /**
  * Last katalogen fra localStorage
@@ -818,6 +854,98 @@ function exportCatalog() {
 }
 
 /**
+ * Importer Jeeves kjøpshistorikk fra Excel (.xlsx)
+ * Ark "Oversikt" hoppes over; alle andre ark er lokasjonsark.
+ * Første 4 rader per ark hoppes over (tittel, blank, blank, kolonneheader).
+ * Kolonner: Leveringssted | SA-nummer | Art.nr (Tools) | Artikkelnavn | Antall kjøp | Siste kjøp | Total antall
+ * Rader uten SA-nummer hoppes over og telles.
+ * @param {File} file
+ */
+async function importJeevesExcel(file) {
+    let XLSX;
+    try {
+        XLSX = await loadSheetJS();
+    } catch (err) {
+        alert('Kunne ikke laste Excel-biblioteket. Sjekk internettforbindelsen og prøv igjen.');
+        return;
+    }
+
+    const arrayBuffer = await file.arrayBuffer();
+    const workbook = XLSX.read(arrayBuffer, { type: 'array', cellDates: false });
+    const catalog = loadCatalog();
+    const today = new Date().toISOString().slice(0, 10);
+    let added = 0, updated = 0, skipped = 0;
+
+    for (const sheetName of workbook.SheetNames) {
+        if (sheetName.trim().toLowerCase() === 'oversikt') continue;
+
+        const sheet = workbook.Sheets[sheetName];
+        // Les alle rader som arrays (tom celle = '')
+        const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+
+        // Hopp over de 4 første radene (tittel, blank, blank, kolonneheader)
+        for (let i = 4; i < rows.length; i++) {
+            const row = rows[i];
+
+            // Kolonner (0-indeksert):
+            // 0: Leveringssted, 1: SA-nummer, 2: Art.nr (Tools),
+            // 3: Artikkelnavn,  4: Antall kjøp, 5: Siste kjøp, 6: Total antall
+            const leveringssted = String(row[0] || '').trim();
+            const saNr         = String(row[1] || '').trim();
+            const toolsNr      = String(row[2] || '').trim();
+            const artikkelnavn  = String(row[3] || '').trim();
+            const sisteKjøpRaw = row[5];
+
+            // Rader uten SA-nummer hoppes over
+            if (!saNr) { skipped++; continue; }
+            // Rader uten Tools-nr hoppes over stille (ubrukelig nøkkel)
+            if (!toolsNr) { skipped++; continue; }
+
+            // Konverter dato
+            const isoDate = parseNorwegianDate(String(sisteKjøpRaw || '')) || today;
+
+            const newItem = {
+                toolsNr,
+                saNr,
+                description: artikkelnavn,
+                location: leveringssted,
+                lastSeen: isoDate
+            };
+
+            const idx = catalog.findIndex(
+                c => c.toolsNr.toLowerCase() === toolsNr.toLowerCase()
+            );
+            if (idx >= 0) {
+                catalog[idx] = { ...catalog[idx], ...newItem };
+                updated++;
+            } else {
+                catalog.unshift({ id: Date.now() + Math.random(), ...newItem });
+                added++;
+            }
+        }
+    }
+
+    saveCatalog(catalog);
+    renderCatalogList();
+    alert(`Import fullført: ${added} nye artikler lagt til, ${updated} oppdatert, ${skipped} hoppet over (mangler SA-nr).`);
+}
+
+/**
+ * Tøm hele katalogen (med bekreftelse)
+ */
+function clearCatalog() {
+    const catalog = loadCatalog();
+    if (catalog.length === 0) {
+        alert('Katalogen er allerede tom.');
+        return;
+    }
+    if (confirm(`Er du sikker på at du vil slette alle ${catalog.length} artikler fra katalogen? Dette kan ikke angres.`)) {
+        saveCatalog([]);
+        renderCatalogList();
+    }
+}
+
+/**
  * Importer katalog fra CSV-fil (merger inn, Tools-nr som nøkkel)
  * @param {File} file
  */
@@ -927,7 +1055,7 @@ function initAutocomplete() {
 
     input.addEventListener('input', function () {
         const val = this.value.trim().toLowerCase();
-        if (!val) {
+        if (val.length < 2) {
             listEl.classList.add('hidden');
             return;
         }
@@ -1036,17 +1164,36 @@ function initCatalog() {
         exportBtn.addEventListener('click', exportCatalog);
     }
 
-    // Import
-    const importBtn = document.getElementById('importCatalogBtn');
+    // Import Jeeves Excel
+    const importJeevesBtn = document.getElementById('importJeevesBtn');
+    const importJeevesFile = document.getElementById('importJeevesFile');
+    if (importJeevesBtn && importJeevesFile) {
+        importJeevesBtn.addEventListener('click', () => importJeevesFile.click());
+        importJeevesFile.addEventListener('change', function () {
+            if (this.files[0]) {
+                importJeevesExcel(this.files[0]);
+                this.value = '';
+            }
+        });
+    }
+
+    // Import CSV
+    const importCatalogBtn = document.getElementById('importCatalogBtn');
     const importFile = document.getElementById('importCatalogFile');
-    if (importBtn && importFile) {
-        importBtn.addEventListener('click', () => importFile.click());
+    if (importCatalogBtn && importFile) {
+        importCatalogBtn.addEventListener('click', () => importFile.click());
         importFile.addEventListener('change', function () {
             if (this.files[0]) {
                 importCatalog(this.files[0]);
-                this.value = ''; // reset slik at samme fil kan velges igjen
+                this.value = '';
             }
         });
+    }
+
+    // Tøm katalogen
+    const clearBtn = document.getElementById('clearCatalogBtn');
+    if (clearBtn) {
+        clearBtn.addEventListener('click', clearCatalog);
     }
 
     // Autocomplete
