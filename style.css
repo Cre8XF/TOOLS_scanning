@@ -125,6 +125,13 @@
     margin-bottom: 6px;
 }
 
+.catalog-item-title-row {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
 .catalog-item-title {
     font-weight: 700;
     color: #333;
@@ -135,6 +142,32 @@
     color: #667eea;
     font-size: 0.9rem;
     font-weight: 600;
+}
+
+.catalog-copy-btn {
+    background: none;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    padding: 2px 8px;
+    font-size: 0.78rem;
+    cursor: pointer;
+    color: #555;
+    transition: all 0.2s;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.catalog-copy-btn:hover {
+    background: #f0f3ff;
+    border-color: #667eea;
+    color: #667eea;
+}
+
+.catalog-copy-btn:disabled {
+    background: #e8f5e9;
+    border-color: #28a745;
+    color: #28a745;
+    cursor: default;
 }
 
 .catalog-item-desc {
