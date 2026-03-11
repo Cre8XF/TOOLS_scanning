@@ -388,6 +388,7 @@ if (document.readyState === 'loading') {
 let scannerStream = null;
 let scannerActive = false;
 let scannerTimeout = null;
+let scannerTargetField = 'articleNumber'; // felt som fylles ved vellykket skanning
 
 const scanBtn = document.getElementById('scanBtn');
 const closeScanBtn = document.getElementById('closeScanBtn');
@@ -516,14 +517,17 @@ function handleScanSuccess(code) {
     scannerOverlay.classList.add('scan-success');
 
     setTimeout(() => {
-        // Fyll inn artikkelnummer
-        document.getElementById('articleNumber').value = code;
+        // Fyll inn målfeltet og nullstill til standard
+        document.getElementById(scannerTargetField).value = code;
+        const wasArticleNumber = scannerTargetField === 'articleNumber';
+        scannerTargetField = 'articleNumber';
 
-        // Lukk kamera
         stopScanner();
 
-        // Flytt fokus til antall-felt
-        document.getElementById('quantity').focus();
+        // Flytt fokus til antall-felt kun ved behovsregistrering
+        if (wasArticleNumber) {
+            document.getElementById('quantity').focus();
+        }
     }, 300);
 }
 
@@ -728,7 +732,7 @@ function saveCatalog(catalog) {
 
 /**
  * Legg til eller oppdater en artikkel i katalogen
- * @param {Object} article - { toolsNr, saNr, description, location }
+ * @param {Object} article - { toolsNr, saNr, ean, description, location }
  */
 function upsertCatalogItem(article) {
     const catalog = loadCatalog();
@@ -741,6 +745,7 @@ function upsertCatalogItem(article) {
         catalog[idx] = {
             ...catalog[idx],
             saNr: article.saNr,
+            ean: article.ean || '',
             description: article.description,
             location: article.location,
             lastSeen: today
@@ -750,6 +755,7 @@ function upsertCatalogItem(article) {
             id: Date.now(),
             toolsNr: article.toolsNr,
             saNr: article.saNr,
+            ean: article.ean || '',
             description: article.description,
             location: article.location,
             lastSeen: today
@@ -793,6 +799,7 @@ function renderCatalogList() {
         ? catalog.filter(c =>
             c.toolsNr.toLowerCase().includes(search) ||
             (c.saNr || '').toLowerCase().includes(search) ||
+            (c.ean || '').toLowerCase().includes(search) ||
             c.description.toLowerCase().includes(search)
           )
         : catalog;
@@ -807,26 +814,49 @@ function renderCatalogList() {
     listEl.innerHTML = filtered.map(item => {
         const days = daysSince(item.lastSeen);
         const isStale = days >= STALE_DAYS;
+        const safeId = item.id;
+        const safeToolsNr = escapeHtml(item.toolsNr);
         return `
             <div class="catalog-item${isStale ? ' stale' : ''}">
                 <div class="catalog-item-header">
-                    <div>
-                        <span class="catalog-item-title">${escapeHtml(item.toolsNr)}</span>
+                    <div class="catalog-item-title-row">
+                        <span class="catalog-item-title">${safeToolsNr}</span>
                         ${item.saNr ? `<span class="catalog-item-sa"> · ${escapeHtml(item.saNr)}</span>` : ''}
+                        <button class="catalog-copy-btn" onclick="copyCatalogItem('${safeToolsNr}', this)" title="Kopier Tools-nr">📋 Kopier</button>
                     </div>
                 </div>
                 <div class="catalog-item-desc">${escapeHtml(item.description)}</div>
                 <div class="catalog-item-meta">
                     ${item.location ? `<span>📍 ${escapeHtml(item.location)}</span>` : ''}
+                    ${item.ean ? `<span>🔖 EAN: ${escapeHtml(item.ean)}</span>` : ''}
                     <span>👁️ Sist sett: ${escapeHtml(item.lastSeen)}</span>
                 </div>
                 ${isStale ? `<div class="stale-warning">⚠️ Ikke sett på ${days} dager</div>` : ''}
                 <div class="catalog-item-actions">
-                    <button class="catalog-delete" onclick="deleteCatalogItem(${item.id})">🗑️ Slett</button>
+                    <button class="catalog-delete" onclick="deleteCatalogItem(${safeId})">🗑️ Slett</button>
                 </div>
             </div>
         `;
     }).join('');
+}
+
+/**
+ * Kopier Tools-nr til utklippstavlen med visuell bekreftelse
+ * @param {string} toolsNr
+ * @param {HTMLElement} btn
+ */
+function copyCatalogItem(toolsNr, btn) {
+    navigator.clipboard.writeText(toolsNr).then(() => {
+        const original = btn.textContent;
+        btn.textContent = '✓ Kopiert!';
+        btn.disabled = true;
+        setTimeout(() => {
+            btn.textContent = original;
+            btn.disabled = false;
+        }, 1500);
+    }).catch(() => {
+        alert('Kopiering ikke støttet i denne nettleseren.');
+    });
 }
 
 /**
@@ -839,10 +869,11 @@ function exportCatalog() {
         return;
     }
 
-    const headers = ['tools_nr', 'sa_nr', 'beskrivelse', 'lokasjon', 'sist_sett'];
+    const headers = ['tools_nr', 'sa_nr', 'ean', 'beskrivelse', 'lokasjon', 'sist_sett'];
     const rows = catalog.map(c => [
         escapeCSV(c.toolsNr),
         escapeCSV(c.saNr || ''),
+        escapeCSV(c.ean || ''),
         escapeCSV(c.description),
         escapeCSV(c.location || ''),
         escapeCSV(c.lastSeen)
@@ -966,6 +997,7 @@ function importCatalog(file) {
         const headerLine = firstLine.split(delimiter).map(h => h.trim().toLowerCase());
         const colToolsNr = headerLine.indexOf('tools_nr');
         const colSaNr = headerLine.indexOf('sa_nr');
+        const colEan = headerLine.indexOf('ean');
         const colDesc = headerLine.indexOf('beskrivelse');
         const colLoc = headerLine.indexOf('lokasjon');
         const colLastSeen = headerLine.indexOf('sist_sett');
@@ -987,6 +1019,7 @@ function importCatalog(file) {
             const newItem = {
                 toolsNr,
                 saNr: colSaNr >= 0 ? (cols[colSaNr] || '').trim() : '',
+                ean: colEan >= 0 ? (cols[colEan] || '').trim() : '',
                 description: colDesc >= 0 ? (cols[colDesc] || '').trim() : '',
                 location: colLoc >= 0 ? (cols[colLoc] || '').trim() : '',
                 lastSeen: colLastSeen >= 0 && cols[colLastSeen]?.trim()
@@ -1061,10 +1094,20 @@ function initAutocomplete() {
         }
 
         const catalog = loadCatalog();
+
+        // Eksakt EAN-treff: fyll inn toolsNr direkte uten å vise dropdown
+        const eanExact = catalog.find(c => (c.ean || '').toLowerCase() === val);
+        if (eanExact) {
+            input.value = eanExact.toolsNr;
+            listEl.classList.add('hidden');
+            return;
+        }
+
         const matches = catalog
             .filter(c =>
                 c.toolsNr.toLowerCase().includes(val) ||
-                (c.saNr || '').toLowerCase().includes(val)
+                (c.saNr || '').toLowerCase().includes(val) ||
+                (c.ean || '').toLowerCase().includes(val)
             )
             .slice(0, 5);
 
@@ -1125,6 +1168,7 @@ function initCatalog() {
             upsertCatalogItem({
                 toolsNr: document.getElementById('catToolsNr').value.trim(),
                 saNr: document.getElementById('catSaNr').value.trim(),
+                ean: document.getElementById('catEanNr').value.trim(),
                 description: document.getElementById('catDescription').value.trim(),
                 location
             });
@@ -1134,6 +1178,19 @@ function initCatalog() {
             renderCatalogList();
             document.getElementById('catToolsNr').focus();
         });
+    }
+
+    // EAN-skanner for katalogskjema
+    const catScanBtn = document.getElementById('catScanBtn');
+    if (catScanBtn) {
+        if (!isBarcodeDetectorSupported()) {
+            catScanBtn.style.display = 'none';
+        } else {
+            catScanBtn.addEventListener('click', () => {
+                scannerTargetField = 'catEanNr';
+                startScanner();
+            });
+        }
     }
 
     // Lokasjon custom i katalogskjema
