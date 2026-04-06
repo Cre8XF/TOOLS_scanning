@@ -24,7 +24,7 @@ const LOKASJON_MAP = {
 };
 
 const DASHBOARD_API = "https://tools-dashboard.netlify.app/api/mottakRunde";
-const API_KEY = "DIN_API_NØKKEL_HER";
+const API_KEY = "19031980tools";
 
 // DOM-elementer
 const startView = document.getElementById('startView');
