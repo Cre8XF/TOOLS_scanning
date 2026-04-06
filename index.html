@@ -42,6 +42,10 @@
                         </select>
                         <input type="text" id="locationCustom" name="locationCustom"
                                placeholder="Skriv inn lokasjon" style="display:none; margin-top:8px;">
+                        <div id="rampeVisning" style="display:none; margin-top:6px;
+                            padding:6px 10px; background:#E8F4FD; border-radius:6px;
+                            font-size:13px; color:#185FA5; font-weight:500;">
+                        </div>
                     </div>
 
                     <div class="form-group">
@@ -49,9 +53,9 @@
                         <input type="text" id="department" name="department" placeholder="F.eks. Tools Fredrikstad">
                     </div>
 
-                    <div class="form-group">
-                        <label for="csvFilename">CSV-filnavn *</label>
-                        <input type="text" id="csvFilename" name="csvFilename" required placeholder="F.eks. etterfylling">
+                    <div class="form-group" style="display:none;">
+                        <label for="csvFilename">CSV-filnavn</label>
+                        <input type="text" id="csvFilename" name="csvFilename" placeholder="F.eks. etterfylling">
                     </div>
 
                     <div class="form-group">
@@ -83,6 +87,10 @@
                 <div class="info-item">
                     <span class="label">Uke:</span>
                     <span id="displayWeek" class="value"></span>
+                </div>
+                <div class="info-item" id="rampeInfoItem" style="display:none;">
+                    <span class="label">Rampe:</span>
+                    <span id="displayRampe" class="value"></span>
                 </div>
             </div>
 

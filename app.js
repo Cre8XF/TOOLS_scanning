@@ -163,7 +163,8 @@ function startRound(e) {
         ? document.getElementById('locationCustom').value.trim()
         : locationSelect.value;
     const department = document.getElementById('department').value.trim();
-    const csvFilename = document.getElementById('csvFilename').value.trim();
+    const csvFilename = document.getElementById('csvFilename').value.trim()
+        || 'runde_' + formatDate(new Date());
     const registeredBy = document.getElementById('registeredBy').value.trim();
 
     const now = new Date();
@@ -197,6 +198,17 @@ function showRegistrationView() {
     displayDepartment.textContent = currentRound.department || '(ikke angitt)';
     displayDate.textContent = currentRound.date;
     displayWeek.textContent = currentRound.week;
+
+    const lokInfo = LOKASJON_MAP[currentRound.location];
+    const rampe = lokInfo ? lokInfo.rampe : '';
+    const rampeInfoItem = document.getElementById('rampeInfoItem');
+    const displayRampe = document.getElementById('displayRampe');
+    if (rampeInfoItem && displayRampe && rampe) {
+        displayRampe.textContent = rampe;
+        rampeInfoItem.style.display = 'flex';
+    } else if (rampeInfoItem) {
+        rampeInfoItem.style.display = 'none';
+    }
 
     updateItemsList();
 }
@@ -494,7 +506,7 @@ function init() {
     itemForm.addEventListener('submit', addItem);
     cancelRoundBtn.addEventListener('click', cancelRound);
 
-    // Lokasjon dropdown – vis fritekstfelt ved "Annet"
+    // Lokasjon dropdown – vis fritekstfelt ved "Annet", og vis rampe
     document.getElementById('location').addEventListener('change', function () {
         const custom = document.getElementById('locationCustom');
         if (this.value === '__custom__') {
@@ -504,6 +516,17 @@ function init() {
             custom.style.display = 'none';
             custom.required = false;
             custom.value = '';
+        }
+
+        const rampeVisning = document.getElementById('rampeVisning');
+        if (rampeVisning) {
+            const lok = LOKASJON_MAP[this.value];
+            if (lok && lok.rampe) {
+                rampeVisning.textContent = 'Rampe: ' + lok.rampe;
+                rampeVisning.style.display = 'block';
+            } else {
+                rampeVisning.style.display = 'none';
+            }
         }
     });
 
