@@ -449,6 +449,7 @@ if (document.readyState === 'loading') {
 let scannerStream = null;
 let scannerActive = false;
 let scannerTimeout = null;
+let scannerTargetField = 'articleNumber'; // felt som fylles ved vellykket skanning
 
 const scanBtn = document.getElementById('scanBtn');
 const closeScanBtn = document.getElementById('closeScanBtn');
@@ -577,14 +578,17 @@ function handleScanSuccess(code) {
     scannerOverlay.classList.add('scan-success');
 
     setTimeout(() => {
-        // Fyll inn artikkelnummer
-        document.getElementById('articleNumber').value = code;
+        // Fyll inn målfeltet og nullstill til standard
+        document.getElementById(scannerTargetField).value = code;
+        const wasArticleNumber = scannerTargetField === 'articleNumber';
+        scannerTargetField = 'articleNumber';
 
-        // Lukk kamera
         stopScanner();
 
-        // Flytt fokus til antall-felt
-        document.getElementById('quantity').focus();
+        // Flytt fokus til antall-felt kun ved behovsregistrering
+        if (wasArticleNumber) {
+            document.getElementById('quantity').focus();
+        }
     }, 300);
 }
 
@@ -675,4 +679,647 @@ if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', initScanner);
 } else {
     initScanner();
+}
+
+/**
+ * ========================================
+ * FANE-NAVIGASJON
+ * ========================================
+ */
+
+/**
+ * Bytt mellom "behov" og "kartlegging"-fanen
+ * @param {'behov'|'kartlegging'} tab
+ */
+function switchTab(tab) {
+    const tabBehov = document.getElementById('tabBehov');
+    const tabKartlegging = document.getElementById('tabKartlegging');
+    const mappingView = document.getElementById('mappingView');
+    const infoBox = document.getElementById('infoBoxBehov');
+
+    if (tab === 'kartlegging') {
+        tabBehov.classList.remove('tab-active');
+        tabKartlegging.classList.add('tab-active');
+
+        // Skjul behovsvisninger
+        startView.classList.add('hidden');
+        registrationView.classList.add('hidden');
+        infoBox.classList.add('hidden');
+
+        // Vis kartlegging
+        mappingView.classList.remove('hidden');
+        renderCatalogList();
+    } else {
+        tabKartlegging.classList.remove('tab-active');
+        tabBehov.classList.add('tab-active');
+
+        // Skjul kartlegging
+        mappingView.classList.add('hidden');
+        infoBox.classList.remove('hidden');
+
+        // Vis korrekt behovsvisning
+        if (currentRound) {
+            registrationView.classList.remove('hidden');
+        } else {
+            startView.classList.remove('hidden');
+        }
+    }
+}
+
+/**
+ * ========================================
+ * ARTIKKELKATALOG
+ * ========================================
+ */
+
+const CATALOG_KEY = 'articleCatalog';
+const STALE_DAYS = 42;
+const SHEETJS_CDN = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+
+/**
+ * Last SheetJS dynamisk fra CDN (kun ved behov)
+ * @returns {Promise<Object>} XLSX-objektet
+ */
+function loadSheetJS() {
+    return new Promise((resolve, reject) => {
+        if (window.XLSX) {
+            resolve(window.XLSX);
+            return;
+        }
+        const script = document.createElement('script');
+        script.src = SHEETJS_CDN;
+        script.onload = () => resolve(window.XLSX);
+        script.onerror = () => reject(new Error('Kunne ikke laste SheetJS'));
+        document.head.appendChild(script);
+    });
+}
+
+/**
+ * Konverter norsk datoformat DD.MM.YYYY til ISO YYYY-MM-DD
+ * @param {string} str
+ * @returns {string|null}
+ */
+function parseNorwegianDate(str) {
+    if (!str) return null;
+    const s = String(str).trim();
+    const match = s.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);
+    if (match) {
+        const [, d, m, y] = match;
+        return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+    }
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+    return null;
+}
+
+/**
+ * Last katalogen fra localStorage
+ * @returns {Array}
+ */
+function loadCatalog() {
+    try {
+        return JSON.parse(localStorage.getItem(CATALOG_KEY)) || [];
+    } catch (e) {
+        return [];
+    }
+}
+
+/**
+ * Lagre katalogen til localStorage
+ * @param {Array} catalog
+ */
+function saveCatalog(catalog) {
+    localStorage.setItem(CATALOG_KEY, JSON.stringify(catalog));
+}
+
+/**
+ * Legg til eller oppdater en artikkel i katalogen
+ * @param {Object} article - { toolsNr, saNr, ean, description, location }
+ */
+function upsertCatalogItem(article) {
+    const catalog = loadCatalog();
+    const today = new Date().toISOString().slice(0, 10);
+    const idx = catalog.findIndex(
+        c => c.toolsNr.toLowerCase() === article.toolsNr.toLowerCase()
+    );
+
+    if (idx >= 0) {
+        catalog[idx] = {
+            ...catalog[idx],
+            saNr: article.saNr,
+            ean: article.ean || '',
+            description: article.description,
+            location: article.location,
+            lastSeen: today
+        };
+    } else {
+        catalog.unshift({
+            id: Date.now(),
+            toolsNr: article.toolsNr,
+            saNr: article.saNr,
+            ean: article.ean || '',
+            description: article.description,
+            location: article.location,
+            lastSeen: today
+        });
+    }
+
+    saveCatalog(catalog);
+}
+
+/**
+ * Slett en artikkel fra katalogen
+ * @param {number} id
+ */
+function deleteCatalogItem(id) {
+    if (!confirm('Slett denne artikkelen fra katalogen?')) return;
+    const catalog = loadCatalog().filter(c => c.id !== id);
+    saveCatalog(catalog);
+    renderCatalogList();
+}
+
+/**
+ * Beregn antall dager siden lastSeen
+ * @param {string} lastSeen - ISO dato-streng YYYY-MM-DD
+ * @returns {number}
+ */
+function daysSince(lastSeen) {
+    const ms = Date.now() - new Date(lastSeen).getTime();
+    return Math.floor(ms / 86400000);
+}
+
+/**
+ * Renderer kataloglisten med valgfritt søkefilter
+ */
+function renderCatalogList() {
+    const catalog = loadCatalog();
+    const search = (document.getElementById('catalogSearch')?.value || '').toLowerCase();
+    const listEl = document.getElementById('catalogList');
+    const countEl = document.getElementById('catalogCount');
+
+    const filtered = search
+        ? catalog.filter(c =>
+            c.toolsNr.toLowerCase().includes(search) ||
+            (c.saNr || '').toLowerCase().includes(search) ||
+            (c.ean || '').toLowerCase().includes(search) ||
+            c.description.toLowerCase().includes(search)
+          )
+        : catalog;
+
+    countEl.textContent = catalog.length;
+
+    if (filtered.length === 0) {
+        listEl.innerHTML = `<p class="empty-message">${search ? 'Ingen treff for søket.' : 'Ingen artikler i katalogen ennå.'}</p>`;
+        return;
+    }
+
+    listEl.innerHTML = filtered.map(item => {
+        const days = daysSince(item.lastSeen);
+        const isStale = days >= STALE_DAYS;
+        const safeId = item.id;
+        const safeToolsNr = escapeHtml(item.toolsNr);
+        return `
+            <div class="catalog-item${isStale ? ' stale' : ''}">
+                <div class="catalog-item-header">
+                    <div class="catalog-item-title-row">
+                        <span class="catalog-item-title">${safeToolsNr}</span>
+                        ${item.saNr ? `<span class="catalog-item-sa"> · ${escapeHtml(item.saNr)}</span>` : ''}
+                        <button class="catalog-copy-btn" onclick="copyCatalogItem('${safeToolsNr}', this)" title="Kopier Tools-nr">📋 Kopier</button>
+                    </div>
+                </div>
+                <div class="catalog-item-desc">${escapeHtml(item.description)}</div>
+                <div class="catalog-item-meta">
+                    ${item.location ? `<span>📍 ${escapeHtml(item.location)}</span>` : ''}
+                    ${item.ean ? `<span>🔖 EAN: ${escapeHtml(item.ean)}</span>` : ''}
+                    <span>👁️ Sist sett: ${escapeHtml(item.lastSeen)}</span>
+                </div>
+                ${isStale ? `<div class="stale-warning">⚠️ Ikke sett på ${days} dager</div>` : ''}
+                <div class="catalog-item-actions">
+                    <button class="catalog-delete" onclick="deleteCatalogItem(${safeId})">🗑️ Slett</button>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+/**
+ * Kopier Tools-nr til utklippstavlen med visuell bekreftelse
+ * @param {string} toolsNr
+ * @param {HTMLElement} btn
+ */
+function copyCatalogItem(toolsNr, btn) {
+    navigator.clipboard.writeText(toolsNr).then(() => {
+        const original = btn.textContent;
+        btn.textContent = '✓ Kopiert!';
+        btn.disabled = true;
+        setTimeout(() => {
+            btn.textContent = original;
+            btn.disabled = false;
+        }, 1500);
+    }).catch(() => {
+        alert('Kopiering ikke støttet i denne nettleseren.');
+    });
+}
+
+/**
+ * Eksporter katalogen som semikolondelt CSV med BOM
+ */
+function exportCatalog() {
+    const catalog = loadCatalog();
+    if (catalog.length === 0) {
+        alert('Katalogen er tom – ingenting å eksportere.');
+        return;
+    }
+
+    const headers = ['tools_nr', 'sa_nr', 'ean', 'beskrivelse', 'lokasjon', 'sist_sett'];
+    const rows = catalog.map(c => [
+        escapeCSV(c.toolsNr),
+        escapeCSV(c.saNr || ''),
+        escapeCSV(c.ean || ''),
+        escapeCSV(c.description),
+        escapeCSV(c.location || ''),
+        escapeCSV(c.lastSeen)
+    ].join(';'));
+
+    const csvContent = [headers.join(';'), ...rows].join('\n');
+    const today = new Date().toISOString().slice(0, 10);
+    downloadCSV(csvContent, `artikkelkatalog_${today}.csv`);
+}
+
+/**
+ * Importer Jeeves kjøpshistorikk fra Excel (.xlsx)
+ * Ark "Oversikt" hoppes over; alle andre ark er lokasjonsark.
+ * Første 4 rader per ark hoppes over (tittel, blank, blank, kolonneheader).
+ * Kolonner: Leveringssted | SA-nummer | Art.nr (Tools) | Artikkelnavn | Antall kjøp | Siste kjøp | Total antall
+ * Rader uten SA-nummer hoppes over og telles.
+ * @param {File} file
+ */
+async function importJeevesExcel(file) {
+    let XLSX;
+    try {
+        XLSX = await loadSheetJS();
+    } catch (err) {
+        alert('Kunne ikke laste Excel-biblioteket. Sjekk internettforbindelsen og prøv igjen.');
+        return;
+    }
+
+    const arrayBuffer = await file.arrayBuffer();
+    const workbook = XLSX.read(arrayBuffer, { type: 'array', cellDates: false });
+    const catalog = loadCatalog();
+    const today = new Date().toISOString().slice(0, 10);
+    let added = 0, updated = 0, skipped = 0;
+
+    for (const sheetName of workbook.SheetNames) {
+        if (sheetName.trim().toLowerCase() === 'oversikt') continue;
+
+        const sheet = workbook.Sheets[sheetName];
+        // Les alle rader som arrays (tom celle = '')
+        const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+
+        // Hopp over de 4 første radene (tittel, blank, blank, kolonneheader)
+        for (let i = 4; i < rows.length; i++) {
+            const row = rows[i];
+
+            // Kolonner (0-indeksert):
+            // 0: Leveringssted, 1: SA-nummer, 2: Art.nr (Tools),
+            // 3: Artikkelnavn,  4: Antall kjøp, 5: Siste kjøp, 6: Total antall
+            const leveringssted = String(row[0] || '').trim();
+            const saNr         = String(row[1] || '').trim();
+            const toolsNr      = String(row[2] || '').trim();
+            const artikkelnavn  = String(row[3] || '').trim();
+            const sisteKjøpRaw = row[5];
+
+            // Rader uten SA-nummer hoppes over
+            if (!saNr) { skipped++; continue; }
+            // Rader uten Tools-nr hoppes over stille (ubrukelig nøkkel)
+            if (!toolsNr) { skipped++; continue; }
+
+            // Konverter dato
+            const isoDate = parseNorwegianDate(String(sisteKjøpRaw || '')) || today;
+
+            const newItem = {
+                toolsNr,
+                saNr,
+                description: artikkelnavn,
+                location: leveringssted,
+                lastSeen: isoDate
+            };
+
+            const idx = catalog.findIndex(
+                c => c.toolsNr.toLowerCase() === toolsNr.toLowerCase()
+            );
+            if (idx >= 0) {
+                catalog[idx] = { ...catalog[idx], ...newItem };
+                updated++;
+            } else {
+                catalog.unshift({ id: Date.now() + Math.random(), ...newItem });
+                added++;
+            }
+        }
+    }
+
+    saveCatalog(catalog);
+    renderCatalogList();
+    alert(`Import fullført: ${added} nye artikler lagt til, ${updated} oppdatert, ${skipped} hoppet over (mangler SA-nr).`);
+}
+
+/**
+ * Tøm hele katalogen (med bekreftelse)
+ */
+function clearCatalog() {
+    const catalog = loadCatalog();
+    if (catalog.length === 0) {
+        alert('Katalogen er allerede tom.');
+        return;
+    }
+    if (confirm(`Er du sikker på at du vil slette alle ${catalog.length} artikler fra katalogen? Dette kan ikke angres.`)) {
+        saveCatalog([]);
+        renderCatalogList();
+    }
+}
+
+/**
+ * Importer katalog fra CSV-fil (merger inn, Tools-nr som nøkkel)
+ * @param {File} file
+ */
+function importCatalog(file) {
+    const reader = new FileReader();
+    reader.onload = function (e) {
+        const text = e.target.result.replace(/^\uFEFF/, ''); // fjern BOM
+        const lines = text.split(/\r?\n/).filter(l => l.trim());
+        if (lines.length < 2) {
+            alert('CSV-filen er tom eller ugyldig.');
+            return;
+        }
+
+        // Auto-detect delimiter fra første linje
+        const firstLine = lines[0];
+        const delimiter = firstLine.includes(';') ? ';' : ',';
+
+        const headerLine = firstLine.split(delimiter).map(h => h.trim().toLowerCase());
+        const colToolsNr = headerLine.indexOf('tools_nr');
+        const colSaNr = headerLine.indexOf('sa_nr');
+        const colEan = headerLine.indexOf('ean');
+        const colDesc = headerLine.indexOf('beskrivelse');
+        const colLoc = headerLine.indexOf('lokasjon');
+        const colLastSeen = headerLine.indexOf('sist_sett');
+
+        if (colToolsNr === -1 || colDesc === -1) {
+            alert('Filen mangler påkrevde kolonner (tools_nr, beskrivelse).');
+            return;
+        }
+
+        const catalog = loadCatalog();
+        const today = new Date().toISOString().slice(0, 10);
+        let added = 0, updated = 0;
+
+        for (let i = 1; i < lines.length; i++) {
+            const cols = splitCSVLine(lines[i], delimiter);
+            const toolsNr = (cols[colToolsNr] || '').trim();
+            if (!toolsNr) continue;
+
+            const newItem = {
+                toolsNr,
+                saNr: colSaNr >= 0 ? (cols[colSaNr] || '').trim() : '',
+                ean: colEan >= 0 ? (cols[colEan] || '').trim() : '',
+                description: colDesc >= 0 ? (cols[colDesc] || '').trim() : '',
+                location: colLoc >= 0 ? (cols[colLoc] || '').trim() : '',
+                lastSeen: colLastSeen >= 0 && cols[colLastSeen]?.trim()
+                    ? cols[colLastSeen].trim()
+                    : today
+            };
+
+            const idx = catalog.findIndex(c => c.toolsNr.toLowerCase() === toolsNr.toLowerCase());
+            if (idx >= 0) {
+                catalog[idx] = { ...catalog[idx], ...newItem };
+                updated++;
+            } else {
+                catalog.unshift({ id: Date.now() + i, ...newItem });
+                added++;
+            }
+        }
+
+        saveCatalog(catalog);
+        renderCatalogList();
+        alert(`Import fullført: ${added} nye artikler lagt til, ${updated} oppdatert.`);
+    };
+    reader.readAsText(file, 'UTF-8');
+}
+
+/**
+ * Del opp en CSV-linje med støtte for anførselstegn
+ * @param {string} line
+ * @param {string} delimiter
+ * @returns {string[]}
+ */
+function splitCSVLine(line, delimiter) {
+    const result = [];
+    let current = '';
+    let inQuotes = false;
+
+    for (let i = 0; i < line.length; i++) {
+        const ch = line[i];
+        if (ch === '"') {
+            if (inQuotes && line[i + 1] === '"') {
+                current += '"';
+                i++;
+            } else {
+                inQuotes = !inQuotes;
+            }
+        } else if (ch === delimiter && !inQuotes) {
+            result.push(current);
+            current = '';
+        } else {
+            current += ch;
+        }
+    }
+    result.push(current);
+    return result;
+}
+
+/**
+ * ========================================
+ * AUTOCOMPLETE FOR ARTIKKELNUMMER
+ * ========================================
+ */
+
+function initAutocomplete() {
+    const input = document.getElementById('articleNumber');
+    const listEl = document.getElementById('autocompleteList');
+    if (!input || !listEl) return;
+
+    input.addEventListener('input', function () {
+        const val = this.value.trim().toLowerCase();
+        if (val.length < 2) {
+            listEl.classList.add('hidden');
+            return;
+        }
+
+        const catalog = loadCatalog();
+
+        // Eksakt EAN-treff: fyll inn toolsNr direkte uten å vise dropdown
+        const eanExact = catalog.find(c => (c.ean || '').toLowerCase() === val);
+        if (eanExact) {
+            input.value = eanExact.toolsNr;
+            listEl.classList.add('hidden');
+            return;
+        }
+
+        const matches = catalog
+            .filter(c =>
+                c.toolsNr.toLowerCase().includes(val) ||
+                (c.saNr || '').toLowerCase().includes(val) ||
+                (c.ean || '').toLowerCase().includes(val)
+            )
+            .slice(0, 5);
+
+        if (matches.length === 0) {
+            listEl.classList.add('hidden');
+            return;
+        }
+
+        listEl.innerHTML = matches.map(c => `
+            <div class="autocomplete-item" data-value="${escapeHtml(c.toolsNr)}">
+                <strong>${escapeHtml(c.toolsNr)}</strong>
+                ${c.saNr ? ` · ${escapeHtml(c.saNr)}` : ''}
+                <span style="color:#888; font-size:0.85rem"> — ${escapeHtml(c.description)}</span>
+            </div>
+        `).join('');
+        listEl.classList.remove('hidden');
+
+        listEl.querySelectorAll('.autocomplete-item').forEach(item => {
+            item.addEventListener('mousedown', function (e) {
+                e.preventDefault(); // forhindre blur
+                input.value = this.dataset.value;
+                listEl.classList.add('hidden');
+                input.focus();
+            });
+        });
+    });
+
+    input.addEventListener('blur', function () {
+        // Liten forsinkelse slik at mousedown på forslag rekker å kjøre
+        setTimeout(() => listEl.classList.add('hidden'), 150);
+    });
+
+    input.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape') {
+            listEl.classList.add('hidden');
+        }
+    });
+}
+
+/**
+ * ========================================
+ * INITIALISERING AV KATALOG
+ * ========================================
+ */
+
+function initCatalog() {
+    // Katalog-skjema
+    const catalogForm = document.getElementById('catalogForm');
+    if (catalogForm) {
+        catalogForm.addEventListener('submit', function (e) {
+            e.preventDefault();
+
+            const locSelect = document.getElementById('catLocation');
+            const location = locSelect.value === '__custom__'
+                ? document.getElementById('catLocationCustom').value.trim()
+                : locSelect.value;
+
+            upsertCatalogItem({
+                toolsNr: document.getElementById('catToolsNr').value.trim(),
+                saNr: document.getElementById('catSaNr').value.trim(),
+                ean: document.getElementById('catEanNr').value.trim(),
+                description: document.getElementById('catDescription').value.trim(),
+                location
+            });
+
+            catalogForm.reset();
+            document.getElementById('catLocationCustom').style.display = 'none';
+            renderCatalogList();
+            document.getElementById('catToolsNr').focus();
+        });
+    }
+
+    // EAN-skanner for katalogskjema
+    const catScanBtn = document.getElementById('catScanBtn');
+    if (catScanBtn) {
+        if (!isBarcodeDetectorSupported()) {
+            catScanBtn.style.display = 'none';
+        } else {
+            catScanBtn.addEventListener('click', () => {
+                scannerTargetField = 'catEanNr';
+                startScanner();
+            });
+        }
+    }
+
+    // Lokasjon custom i katalogskjema
+    const catLocSelect = document.getElementById('catLocation');
+    if (catLocSelect) {
+        catLocSelect.addEventListener('change', function () {
+            const custom = document.getElementById('catLocationCustom');
+            if (this.value === '__custom__') {
+                custom.style.display = 'block';
+                custom.required = true;
+            } else {
+                custom.style.display = 'none';
+                custom.required = false;
+                custom.value = '';
+            }
+        });
+    }
+
+    // Søk i katalog
+    const searchEl = document.getElementById('catalogSearch');
+    if (searchEl) {
+        searchEl.addEventListener('input', renderCatalogList);
+    }
+
+    // Eksport
+    const exportBtn = document.getElementById('exportCatalogBtn');
+    if (exportBtn) {
+        exportBtn.addEventListener('click', exportCatalog);
+    }
+
+    // Import Jeeves Excel
+    const importJeevesBtn = document.getElementById('importJeevesBtn');
+    const importJeevesFile = document.getElementById('importJeevesFile');
+    if (importJeevesBtn && importJeevesFile) {
+        importJeevesBtn.addEventListener('click', () => importJeevesFile.click());
+        importJeevesFile.addEventListener('change', function () {
+            if (this.files[0]) {
+                importJeevesExcel(this.files[0]);
+                this.value = '';
+            }
+        });
+    }
+
+    // Import CSV
+    const importCatalogBtn = document.getElementById('importCatalogBtn');
+    const importFile = document.getElementById('importCatalogFile');
+    if (importCatalogBtn && importFile) {
+        importCatalogBtn.addEventListener('click', () => importFile.click());
+        importFile.addEventListener('change', function () {
+            if (this.files[0]) {
+                importCatalog(this.files[0]);
+                this.value = '';
+            }
+        });
+    }
+
+    // Tøm katalogen
+    const clearBtn = document.getElementById('clearCatalogBtn');
+    if (clearBtn) {
+        clearBtn.addEventListener('click', clearCatalog);
+    }
+
+    // Autocomplete
+    initAutocomplete();
+}
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initCatalog);
+} else {
+    initCatalog();
 }
