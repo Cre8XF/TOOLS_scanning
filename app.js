@@ -25,6 +25,65 @@ const LOKASJON_MAP = {
 
 const DASHBOARD_API = "https://tools-dashboard.netlify.app/api/mottakRunde";
 const API_KEY = "19031980tools";
+const ARTIKKEL_API = "https://tools-dashboard.netlify.app/api/artikkelOppslag";
+
+async function sjekkArtikkel(nr) {
+    try {
+        const res = await fetch(`${ARTIKKEL_API}?nr=${encodeURIComponent(nr)}`);
+        if (!res.ok) return null;
+        return await res.json();
+    } catch(e) {
+        return null;
+    }
+}
+
+function artikkelStatusHTML(info) {
+    if (!info || !info.funnet) {
+        return `<div style="margin-top:6px;padding:6px 10px;border-radius:6px;
+            background:#FFF3CD;color:#856404;font-size:13px;">
+            ⚠️ Ikke funnet i katalog — sjekk art.nr
+        </div>`;
+    }
+
+    const status = (info.status || '').toLowerCase();
+    const saldo = info.saldo || 0;
+
+    let farge = '#D4EDDA';
+    let tekstfarge = '#155724';
+    let ikon = '✅';
+    let melding = `Aktiv · Saldo: ${saldo} stk`;
+
+    if (status.includes('utgå') || status.includes('discontinued') ||
+        status.includes('utgatt') || status === '9') {
+        farge = '#F8D7DA';
+        tekstfarge = '#721C24';
+        ikon = '❌';
+        melding = `Utgått${info.erstatning ? ' — Erstatning: ' + info.erstatning : ''}`;
+    } else if (status.includes('planlagt') || status.includes('planned') ||
+               status === '3') {
+        farge = '#FFF3CD';
+        tekstfarge = '#856404';
+        ikon = '⚠️';
+        melding = `Planlagt utgående${info.erstatning ? ' — Erstatning: ' + info.erstatning : ''}`;
+    } else if (saldo === 0) {
+        farge = '#FFF3CD';
+        tekstfarge = '#856404';
+        ikon = '⚠️';
+        melding = `Aktiv · Saldo: 0 stk`;
+    }
+
+    const beskrivelseHTML = info.beskrivelse
+        ? `<div style="font-size:12px;margin-bottom:2px;opacity:0.85;">
+            ${info.beskrivelse}
+           </div>`
+        : '';
+
+    return `<div style="margin-top:6px;padding:6px 10px;border-radius:6px;
+        background:${farge};color:${tekstfarge};font-size:13px;">
+        ${beskrivelseHTML}
+        ${ikon} ${melding}
+    </div>`;
+}
 
 // DOM-elementer
 const startView = document.getElementById('startView');
@@ -154,15 +213,44 @@ function showStartView() {
  * Legg til en ny artikkel
  * @param {Event} e - Form submit event
  */
-function addItem(e) {
+async function addItem(e) {
     e.preventDefault();
 
     const articleNumber = document.getElementById('articleNumber').value.trim();
     const quantity = parseInt(document.getElementById('quantity').value);
     const comment = document.getElementById('comment').value.trim();
 
+    // Sjekk artikkelstatus
+    const statusDiv = document.getElementById('artikkelStatus');
+    if (statusDiv) {
+        statusDiv.innerHTML = '<div style="margin-top:6px;font-size:12px;color:#666;">Sjekker...</div>';
+    }
+
+    const info = await sjekkArtikkel(articleNumber);
+    const statusHtml = artikkelStatusHTML(info);
+
+    if (statusDiv) statusDiv.innerHTML = statusHtml;
+
+    // Advar hvis utgått
+    if (info && info.funnet) {
+        const status = (info.status || '').toLowerCase();
+        const erUtgatt = status.includes('utgå') || status.includes('discontinued') ||
+                         status.includes('utgatt') || status === '9';
+
+        if (erUtgatt) {
+            const fortsett = confirm(
+                `⚠️ ${articleNumber} er UTGÅTT${info.erstatning ? '\nErstatning: ' + info.erstatning : ''}\n\nVil du legge den til likevel?`
+            );
+            if (!fortsett) {
+                if (statusDiv) statusDiv.innerHTML = '';
+                document.getElementById('articleNumber').focus();
+                return;
+            }
+        }
+    }
+
     const item = {
-        id: Date.now(), // Enkel ID basert på timestamp
+        id: Date.now(),
         articleNumber: articleNumber,
         quantity: quantity,
         comment: comment || ''
@@ -173,13 +261,13 @@ function addItem(e) {
     updateItemsList();
     itemForm.reset();
 
-    // Vis sist registrerte linje
+    if (statusDiv) statusDiv.innerHTML = '';
+
     const banner = document.getElementById('lastItemBanner');
     const lastText = document.getElementById('lastItemText');
     lastText.textContent = `${item.articleNumber}  ×${item.quantity}${item.comment ? '  – ' + item.comment : ''}`;
     banner.classList.remove('hidden');
 
-    // Sett fokus tilbake til artikkelnummer-feltet
     document.getElementById('articleNumber').focus();
 }
 
