@@ -13,6 +13,19 @@
 // Global tilstand
 let currentRound = null;
 
+// Lokasjonskart — kobler lokasjonsnavnet til deliv_id og rampe i dashboard
+const LOKASJON_MAP = {
+    "ØST: Spriten":    { deliv_id: "424186-2", rampe: "R-229" },
+    "VEST: Cellulose": { deliv_id: "424186-3", rampe: "R-275" },
+    "Kokeri":          { deliv_id: "424186-4", rampe: "R-125" },
+    "ALVA":            { deliv_id: "424186-5", rampe: "R-265" },
+    "SENTRALV.":       { deliv_id: "424186-6", rampe: "R-156" },
+    "Grace":           { deliv_id: "424186-7", rampe: "" },
+};
+
+const DASHBOARD_API = "https://tools-dashboard.netlify.app/api/mottakRunde";
+const API_KEY = "DIN_API_NØKKEL_HER";
+
 // DOM-elementer
 const startView = document.getElementById('startView');
 const registrationView = document.getElementById('registrationView');
@@ -20,7 +33,6 @@ const startForm = document.getElementById('startForm');
 const itemForm = document.getElementById('itemForm');
 const itemsList = document.getElementById('itemsList');
 const itemCount = document.getElementById('itemCount');
-const finishRoundBtn = document.getElementById('finishRoundBtn');
 const cancelRoundBtn = document.getElementById('cancelRoundBtn');
 
 // Visningselementer for rundeinfo
@@ -301,26 +313,76 @@ function downloadCSV(content, filename) {
 }
 
 /**
- * Avslutt runde og eksporter til CSV
+ * Avslutt runde — sender direkte til dashboard
  */
-function finishRound() {
+async function finishRound() {
     if (currentRound.items.length === 0) {
         alert('Du må registrere minst én linje før du kan avslutte runden.');
         return;
     }
+    await sendTilDashboard();
+}
 
-    if (confirm(`Avslutt runde og eksporter ${currentRound.items.length} linjer til CSV?`)) {
-        const csvContent = generateCSV();
-        const filename = generateFilename();
+/**
+ * Send runde til Borregaard Dashboard via API
+ */
+async function sendTilDashboard() {
+    if (currentRound.items.length === 0) {
+        alert('Du må registrere minst én linje før du kan sende.');
+        return;
+    }
 
-        downloadCSV(csvContent, filename);
+    const lokInfo = LOKASJON_MAP[currentRound.location] || { deliv_id: '', rampe: '' };
 
-        // Rydd opp
-        localStorage.removeItem('currentRound');
-        currentRound = null;
-        showStartView();
+    const payload = {
+        lokasjon:      currentRound.location,
+        deliv_id:      lokInfo.deliv_id,
+        rampe:         lokInfo.rampe,
+        dato:          currentRound.date,
+        uke:           currentRound.week,
+        registrert_av: currentRound.registeredBy || '',
+        items: currentRound.items.map(item => ({
+            articleNumber: item.articleNumber,
+            quantity:      item.quantity,
+            comment:       item.comment || ''
+        }))
+    };
 
-        alert(`CSV-fil "${filename}" er lastet ned!`);
+    const sendBtn = document.getElementById('sendDashboardBtn');
+    if (sendBtn) {
+        sendBtn.textContent = '⏳ Sender...';
+        sendBtn.disabled = true;
+    }
+
+    try {
+        const res = await fetch(DASHBOARD_API, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-API-Key': API_KEY
+            },
+            body: JSON.stringify(payload)
+        });
+
+        if (res.ok) {
+            localStorage.removeItem('currentRound');
+            currentRound = null;
+            showStartView();
+            alert('✅ Runde sendt til dashboard!');
+        } else {
+            const err = await res.json();
+            alert('❌ Feil ved sending: ' + (err.error || res.status));
+            if (sendBtn) {
+                sendBtn.textContent = '📤 Send til dashboard';
+                sendBtn.disabled = false;
+            }
+        }
+    } catch(e) {
+        alert('❌ Nettverksfeil: ' + e.message);
+        if (sendBtn) {
+            sendBtn.textContent = '📤 Send til dashboard';
+            sendBtn.disabled = false;
+        }
     }
 }
 
@@ -342,7 +404,6 @@ function init() {
     // Event listeners
     startForm.addEventListener('submit', startRound);
     itemForm.addEventListener('submit', addItem);
-    finishRoundBtn.addEventListener('click', finishRound);
     cancelRoundBtn.addEventListener('click', cancelRound);
 
     // Lokasjon dropdown – vis fritekstfelt ved "Annet"
