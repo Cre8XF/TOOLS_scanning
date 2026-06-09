@@ -53,13 +53,13 @@ function artikkelStatusHTML(info) {
     let ikon = '✅';
     let melding = `Aktiv · Saldo: ${saldo} stk`;
 
-    if (status.includes('utgå') || status.includes('discontinued') ||
+    if (status === 'u' || status.includes('utgå') || status.includes('discontinued') ||
         status.includes('utgatt') || status === '9') {
         farge = '#F8D7DA';
         tekstfarge = '#721C24';
         ikon = '❌';
         melding = `Utgått${info.erstatning ? ' — Erstatning: ' + info.erstatning : ''}`;
-    } else if (status.includes('planlagt') || status.includes('planned') ||
+    } else if (status === 'pd' || status.includes('planlagt') || status.includes('planned') ||
                status === '3') {
         farge = '#FFF3CD';
         tekstfarge = '#856404';
@@ -1270,9 +1270,13 @@ function initAutocomplete() {
 
     async function visApiForslag(q) {
         try {
-            const res = await fetch(`${ARTIKKEL_API}?q=${encodeURIComponent(q)}&mode=search`);
+            const apiUrl = `${ARTIKKEL_API}?q=${encodeURIComponent(q)}&mode=search`;
+            console.log('[autocomplete] fetch:', apiUrl);
+            const res = await fetch(apiUrl);
+            console.log('[autocomplete] status:', res.status);
             if (!res.ok) return;
             const treff = await res.json();
+            console.log('[autocomplete] treff:', treff);
             if (!Array.isArray(treff) || treff.length === 0) {
                 listEl.classList.add('hidden');
                 return;
@@ -1297,7 +1301,7 @@ function initAutocomplete() {
                 });
             });
         } catch (e) {
-            // ignorer nettverksfeil i autocomplete
+            console.warn('[autocomplete] feil:', e);
         }
     }
 
