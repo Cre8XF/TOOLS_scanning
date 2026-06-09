@@ -1253,13 +1253,59 @@ function splitCSVLine(line, delimiter) {
  * ========================================
  */
 
+async function triggerArtikkelSjekk(nr) {
+    const statusDiv = document.getElementById('artikkelStatus');
+    if (!statusDiv) return;
+    statusDiv.innerHTML = '<div style="margin-top:6px;font-size:12px;color:#666;">Sjekker...</div>';
+    const info = await sjekkArtikkel(nr);
+    statusDiv.innerHTML = artikkelStatusHTML(info);
+}
+
 function initAutocomplete() {
     const input = document.getElementById('articleNumber');
     const listEl = document.getElementById('autocompleteList');
     if (!input || !listEl) return;
 
+    let searchDebounce = null;
+
+    async function visApiForslag(q) {
+        try {
+            const res = await fetch(`${ARTIKKEL_API}?q=${encodeURIComponent(q)}&mode=search`);
+            if (!res.ok) return;
+            const treff = await res.json();
+            if (!Array.isArray(treff) || treff.length === 0) {
+                listEl.classList.add('hidden');
+                return;
+            }
+            listEl.innerHTML = treff.slice(0, 8).map(c => `
+                <div class="autocomplete-item" data-value="${escapeHtml(c.artnr)}">
+                    <strong>${escapeHtml(c.artnr)}</strong>
+                    <span style="color:#888; font-size:0.85rem"> — ${escapeHtml(c.beskrivelse)}</span>
+                    ${c.status === 'U' ? '<span style="color:red;font-size:0.85rem;margin-left:4px;"> ⚠ Utgått</span>' : ''}
+                </div>
+            `).join('');
+            listEl.classList.remove('hidden');
+
+            listEl.querySelectorAll('.autocomplete-item').forEach(item => {
+                item.addEventListener('mousedown', function (e) {
+                    e.preventDefault();
+                    const artnr = this.dataset.value;
+                    input.value = artnr;
+                    listEl.classList.add('hidden');
+                    input.focus();
+                    triggerArtikkelSjekk(artnr);
+                });
+            });
+        } catch (e) {
+            // ignorer nettverksfeil i autocomplete
+        }
+    }
+
     input.addEventListener('input', function () {
-        const val = this.value.trim().toLowerCase();
+        const val = this.value.trim();
+        const valLower = val.toLowerCase();
+        clearTimeout(searchDebounce);
+
         if (val.length < 2) {
             listEl.classList.add('hidden');
             return;
@@ -1268,18 +1314,25 @@ function initAutocomplete() {
         const catalog = loadCatalog();
 
         // Eksakt EAN-treff: fyll inn toolsNr direkte uten å vise dropdown
-        const eanExact = catalog.find(c => (c.ean || '').toLowerCase() === val);
+        const eanExact = catalog.find(c => (c.ean || '').toLowerCase() === valLower);
         if (eanExact) {
             input.value = eanExact.toolsNr;
             listEl.classList.add('hidden');
             return;
         }
 
+        // Fritekstsøk mot API hvis >= 3 tegn og inneholder bokstaver
+        if (val.length >= 3 && /[a-zA-ZæøåÆØÅ]/.test(val)) {
+            searchDebounce = setTimeout(() => visApiForslag(val), 300);
+            return;
+        }
+
+        // Lokalt katalogsøk (rene tallstrenger / korte søk)
         const matches = catalog
             .filter(c =>
-                c.toolsNr.toLowerCase().includes(val) ||
-                (c.saNr || '').toLowerCase().includes(val) ||
-                (c.ean || '').toLowerCase().includes(val)
+                c.toolsNr.toLowerCase().includes(valLower) ||
+                (c.saNr || '').toLowerCase().includes(valLower) ||
+                (c.ean || '').toLowerCase().includes(valLower)
             )
             .slice(0, 5);
 
